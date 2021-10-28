@@ -1,0 +1,201 @@
+---
+title: "External Source Maps"
+author: "Jocelyn Stalker"
+date: "10/27/2021"
+output: html_document
+---
+
+<body style="background-color:#e18d71;">
+
+<style>
+div.desert pre { background-color:#ffdfb4; }
+div.desert pre.r { background-color:#ffdfb4; }
+</style>
+
+<div class = "desert">
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load packages, include= FALSE}
+packages<-c("cowplot","dismo","leaflet","maps","mapdata","OpenStreetMap","raster","rasterVis","readxl","rgbif","rgdal","tidyverse","utils")
+sapply(packages, library, character.only=T)
+```
+
+![](images/zoom-out.jpg)
+
+```{r, message= FALSE, warning= FALSE}
+campus.kml <- readOGR("https://raw.githubusercontent.com/chrismgentry/Mapping-Basics/master/Data/Campus_Points.kml")
+
+campus_points <- cbind(campus.kml@data,campus.kml@coords)
+campus_points[2] <- NULL
+campus_points[4] <- NULL
+colnames(campus_points) <- c("name","x","y")
+
+CampusMap <- openmap(c(36.5360,-87.3570),c(36.5300,-87.3495), type='bing')
+APSU <- openproj(CampusMap, projection = "+proj=longlat +ellps=WGS84 +units=m +no_defs")
+
+poly.kml <- readOGR("https://raw.githubusercontent.com/chrismgentry/Mapping-Basics/master/Data/Main_Campus.kml")
+outline_poly <- as.data.frame(cbind(poly.kml@polygons[[1]]@Polygons[[1]]@coords[,1], poly.kml@polygons[[1]]@Polygons[[1]]@coords[,2]))
+colnames(outline_poly) <- c("X","Y")
+
+autoplot.OpenStreetMap(APSU) +
+  geom_point(data=campus_points, aes(x = x, y = y, color = name), size = 4, alpha = 0.8) +
+  geom_text(data=campus_points,aes(x = x, y = y, label = name), color="black", vjust=-0.60, size=4.01, fontface="bold") +
+  geom_text(data=campus_points,aes(x = x, y = y, label = name), color="white", vjust=-0.75, fontface="bold") +
+  labs(x="Longtiude", y="Latitude") + theme(legend.position = "none") +
+  geom_polygon(data= outline_poly, aes(x=X, y=Y), alpha= .5, size=2, color= "red")
+```
+
+![](images/gila-monster.jpg) ![](images/beaded-lizard.jpg)
+
+```{r, message= FALSE}
+helo_dismo <- gbif("heloderma", geo=TRUE, sp=TRUE, download=TRUE, removeZeros=TRUE, ext= c(-124,-85,0,37))
+
+helo_dismo_df <- cbind.data.frame(helo_dismo@coords[,1],
+                                  helo_dismo@coords[,2])
+
+colnames(helo_dismo_df) <- c("x","y")
+
+us.mex <- map_data("world")
+
+ggplot(data = helo_dismo_df, aes(x=x, y=y)) +
+  geom_polygon(data = us.mex, aes(x=long, y = lat, group = group),
+               fill = "white", color="black") +
+  geom_point() + xlab("Longitude") + ylab("Latitude") +
+  coord_fixed(xlim = c(-125,-85), ylim = c(10,40)) +
+  xlab("Longitude") + ylab("Latitude") + ggtitle("Heloderma in the Western US and Mexico") + 
+  theme_bw() + theme(plot.title = element_text(hjust = 0.5)) + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "lightblue"))
+```
+
+```{r}
+hesu_rgbif <- occ_data(scientificName = "Heloderma suspectum", hasCoordinate = TRUE,
+                 decimalLongitude = "-125, -65", decimalLatitude = "24, 50")
+
+heho_rgbif <- occ_data(scientificName = "Heloderma horridum", hasCoordinate = TRUE,
+                       decimalLongitude = "-125, -65", decimalLatitude = "24, 50")
+
+hesu_rgbif_df <- cbind.data.frame(hesu_rgbif$data$species,
+                                  hesu_rgbif$data$decimalLatitude,
+                                  hesu_rgbif$data$decimalLongitude,
+                                  hesu_rgbif$data$stateProvince,
+                                  hesu_rgbif$data$verbatimLocality)
+heho_rgbif_df <- cbind.data.frame(heho_rgbif$data$species,
+                                  heho_rgbif$data$decimalLatitude,
+                                  heho_rgbif$data$decimalLongitude,
+                                  heho_rgbif$data$stateProvince,
+                                  heho_rgbif$data$verbatimLocality)
+colnames(hesu_rgbif_df) <- c("species","y","x","state","location")
+colnames(heho_rgbif_df) <- c("species","y","x","state","location")
+hesu_rgbif_df <- hesu_rgbif_df[complete.cases(hesu_rgbif_df[1:4]),]
+heho_rgbif_df <- heho_rgbif_df[complete.cases(heho_rgbif_df[1:4]),]
+
+ggplot() +
+  geom_polygon(data = us.mex, aes(x=long, y = lat, group = group),
+               fill = "white", color="black") +
+  geom_point(data = hesu_rgbif_df, aes(x=x, y=y, color = species), size = 3) +
+  geom_point(data = heho_rgbif_df, aes(x=x, y=y, color = species), size = 3) +  
+  coord_fixed(xlim = c(-125,-85), ylim = c(10,40)) +
+  xlab("Longitude") + ylab("Latitude") + ggtitle("Heloderma in the Western US and Mexico") + 
+  guides(color=guide_legend("Legend", override.aes = list(size = 4))) +
+  theme_bw() + theme(plot.title = element_text(hjust = 0.5)) + 
+  theme(legend.position = "bottom") +
+  theme(legend.title.align = 0.5, legend.box.just = "center") +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "lightblue"))
+```
+
+```{r}
+heloderma <- merge(hesu_rgbif_df, heho_rgbif_df, all= TRUE)
+colors <- colorFactor(c("#4b454e", "#eeae9b"), heloderma$species)
+
+leaflet() %>% 
+  addTiles(group= "OSM") %>%
+  addProviderTiles(providers$CartoDB.Positron, group = "CartoDB") %>%
+  addProviderTiles(providers$Esri.NatGeoWorldMap, group = "NatGeo") %>%
+  addProviderTiles(providers$Esri.WorldImagery, group = "ESRI") %>%
+  addCircleMarkers(hesu_rgbif_df$x,
+                   hesu_rgbif_df$y,
+                   popup = hesu_rgbif_df$state,
+                   weight = 2,
+                   color = colors(hesu_rgbif_df$species),
+                   fillOpacity = 0.7,
+                   group= "Gila Monsters") %>%
+  addCircleMarkers(heho_rgbif_df$x,
+                   heho_rgbif_df$y,
+                   popup = heho_rgbif_df$state,
+                   weight = 2,
+                   color = colors(heho_rgbif_df$species),
+                   fillOpacity = 0.7,
+                   group= "Beaded Lizards") %>%
+  addMiniMap(position = 'topright',
+             width = 100, 
+             height = 100,
+             toggleDisplay = FALSE) %>%
+  addScaleBar(position = "bottomright") %>%
+  addLayersControl(
+    baseGroups = c("OSM", "CartoDB", "NatGeo", "ESRI"),
+    options = layersControlOptions(collapsed = FALSE),
+    overlayGroups = c("Gila Monsters", "Beaded Lizards"))
+```
+
+```{r}
+lizard.icon <- makeIcon(
+  iconUrl= "https://img.icons8.com/dotty/80/000000/salamander.png",
+  iconWidth= 40, iconHeight= 40,
+  iconAnchorX= 20, iconAnchorY= 10)
+
+leaflet() %>% 
+  addTiles(group= "OSM") %>%
+  addProviderTiles(providers$CartoDB.Positron, group = "CartoDB") %>%
+  addProviderTiles(providers$Esri.NatGeoWorldMap, group = "NatGeo") %>%
+  addProviderTiles(providers$Esri.WorldImagery, group = "ESRI") %>%
+  addMarkers(heloderma$x, heloderma$y, icon= lizard.icon, popup= heloderma$species) %>%
+  addMiniMap(position = 'topright',
+             width = 100, 
+             height = 100,
+             toggleDisplay = FALSE) %>%
+  addScaleBar(position = "bottomright") %>%
+  addLayersControl(
+    baseGroups = c("OSM", "CartoDB", "NatGeo", "ESRI"),
+    options = layersControlOptions(collapsed = FALSE))
+```
+
+```{r, cache= TRUE}
+bioclim <- getData(name = "worldclim", res = 2.5, var = "bio", path = "./")
+names(bioclim) <- c("Ann Mean Temp","Mean Diurnal Range","Isothermality","Temperature Seasonality",
+                    "Max Temp Warmest Mo","Min Temp Coldest Mo","Ann Temp Range","Mean Temp Wettest Qtr",
+                    "Mean Temp Driest Qtr","Mean Temp Warmest Qtr","Mean Temp Coldest Qtr","Annual Precip",
+                    "Precip Wettest Mo","Precip Driest Mo","Precip Seasonality","Precip Wettest Qtr",
+                    "Precip Driest Qtr","Precip Warmest Qtr","Precip Coldest Qtr")
+bio_extent <- extent(x = c(
+  min(hesu_rgbif_df$x),
+  max(hesu_rgbif_df$x),
+  min(hesu_rgbif_df$y),
+  max(hesu_rgbif_df$y)))
+bioclim_extent <- crop(x = bioclim, y = bio_extent)
+bioclim_model <- bioclim(x = bioclim_extent, p = cbind(hesu_rgbif_df$x,hesu_rgbif_df$y))
+presence_model <- dismo::predict(object = bioclim_model, 
+                                 x = bioclim_extent, 
+                                 ext = bio_extent)
+
+gplot(presence_model) + 
+  geom_polygon(data = us.mex, aes(x= long, y = lat, group = group),
+               fill = "gray", color="black") +
+  geom_raster(aes(fill=value)) +
+  geom_polygon(data = us.mex, aes(x= long, y = lat, group = group),
+               fill = NA, color="black") +
+  geom_point(data = hesu_rgbif_df, aes(x = x, y = y), size = 2, color = "black", alpha = 0.5) +
+  scale_fill_gradientn(colours=c("brown","yellow","darkgreen"), "Probability") +
+  coord_fixed(xlim = c(-117,-107.5), ylim = c(26,38)) +
+  xlab("Longitude") + ylab("Latitude") + ggtitle("Probability of HESU Occurrence") + 
+  theme_bw() + theme(plot.title = element_text(hjust = 0.5)) + theme(legend.position = "right") +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "lightblue"))
+```
